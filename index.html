@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Weatherglass — Weather on one globe</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png">
+<meta name="description" content="Weatherglass is an offline climate atlas that gains a live pulse on request: current conditions, forecasts and official warnings on one rotating globe or Equal Earth map. Free, no ads, no accounts, no tracking.">
+<link rel="canonical" href="https://weatherglass.live/">
+<link rel="alternate" hreflang="en" href="/">
+<link rel="alternate" hreflang="x-default" href="/">
+<style>
+  :root{
+    --void:#0A0C16; --void-2:#070810; --ink:#EAF0F6; --muted:#9FB0C9;
+    --faint:#5A6B84; --line:rgba(180,205,235,.14); --coast:#3FC7FF; --accent:#E8B04B;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0; min-height:100vh; background:
+      radial-gradient(120% 80% at 50% -10%, #131a2e 0%, var(--void-2) 55%, var(--void) 100%);
+    color:var(--ink);
+    font:16px/1.65 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex; align-items:center; justify-content:center}
+  .wrap{max-width:640px; margin:0 auto; padding:64px 24px; text-align:center}
+  .icon{width:96px; height:96px; border-radius:22px; box-shadow:0 8px 34px rgba(0,0,0,.5); margin-bottom:22px}
+  .brand{font-size:15px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent);
+    font-weight:700; font-family:-apple-system,system-ui,sans-serif}
+  h1{font-size:34px; line-height:1.15; margin:10px 0 8px; font-weight:600}
+  .tag{color:var(--coast); font-size:16px; font-style:italic; margin-bottom:22px}
+  p.lead{color:var(--muted); font-size:17px; margin:0 auto 30px; max-width:520px}
+  .links{display:flex; gap:12px; flex-wrap:wrap; justify-content:center;
+    font-family:-apple-system,system-ui,sans-serif; font-size:14px}
+  .links a{color:var(--ink); text-decoration:none; border:1px solid var(--line); border-radius:10px;
+    padding:11px 18px; background:rgba(127,160,200,.06)}
+  .links a:hover{border-color:var(--coast); color:var(--coast)}
+  .links a.primary{background:var(--accent); color:var(--void); border-color:var(--accent); font-weight:600}
+  .links a.primary:hover{filter:brightness(1.05); color:var(--void)}
+  footer{margin-top:36px; color:var(--faint); font-size:13px; font-family:-apple-system,system-ui,sans-serif}
+  footer a{color:var(--muted); text-decoration:none}
+  footer a:hover{color:var(--coast)}
+  @media (max-width:600px){ h1{font-size:28px} .wrap{padding:48px 18px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <img class="icon" src="/favicon-180.png" width="96" height="96" alt="Weatherglass icon">
+  <div class="brand">Weatherglass</div>
+  <h1>Weather on one globe</h1>
+  <div class="tag">Where the sky takes shape.</div>
+  <p class="lead">An offline climate atlas that gains a live pulse on request. The whole world's
+  climate normals are baked in and read with the wire pulled; current conditions, forecasts and
+  official warnings are fetched only when you ask for them. Free — no ads, no subscriptions, no
+  accounts, no tracking.</p>
+  <div class="links">
+    <!-- App Store link goes here once the app is live -->
+    <a class="primary" href="mailto:hello@weatherglass.live">Contact</a>
+    <a href="/support">Support</a>
+    <a href="/privacy">Privacy</a>
+  </div>
+  <footer>© 2026 Weatherglass · <a href="mailto:hello@weatherglass.live">hello@weatherglass.live</a></footer>
+</div>
+</body>
+</html>
