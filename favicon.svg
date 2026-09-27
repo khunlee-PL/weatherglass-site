@@ -1,0 +1,15 @@
+<svg role="img" aria-label="Weatherglass icon — weather in a storm glass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><defs><linearGradient id="sky" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1B6C91"/><stop offset="1" stop-color="#69C5AC"/></linearGradient><radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FFE39A" stop-opacity=".7"/><stop offset=".55" stop-color="#F3C86A" stop-opacity=".22"/><stop offset="1" stop-color="#F3C86A" stop-opacity="0"/></radialGradient><filter id="sh" x="-20%" y="-20%" width="140%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="12"/><feOffset dy="14"/><feComponentTransfer><feFuncA type="linear" slope=".25"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter><clipPath id="int"><path d="M 309.0 226 V 630 A 203.0 203.0 0 0 0 715.0 630 V 226 Z"/></clipPath></defs>
+<rect width="1024" height="1024" fill="url(#sky)"/>
+<path d="M 309.0 226 V 630 A 203.0 203.0 0 0 0 715.0 630 V 226 Z" fill="#E8F5F3" fill-opacity=".22"/>
+<g clip-path="url(#int)">
+  <circle cx="462" cy="440" r="200" fill="url(#glow)"/>
+  <circle cx="462" cy="440" r="104" fill="#E9B75A"/>
+  <g transform="translate(498.75 419.45000000000005) scale(2.65)"><path d="M-68 87 C-64 79-51 78-41 80 C-28 68-14 68-2 72 C10 50 32 52 40 67 C52 63 62 69 66 77 C73 78 77 84 78 87 Z" fill="#F2FAF8" stroke="#6BB1BE" stroke-width="3.2" stroke-linejoin="round"/></g>
+</g>
+<g clip-path="url(#int)">
+  <path d="M 280 715 Q 360 682 440 715 T 600 715 T 760 715 V 920 H 280 Z" fill="#BCEAE0"/>
+  <path d="M 396 820 l 36 -60 32 48 36 -82 32 70 34 -52 32 42" fill="none" stroke="#178096" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g filter="url(#sh)" fill="none" stroke="#218A91" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M 296 226 V 630 A 216 216 0 0 0 728 630 V 226"/><path d="M 270 226 H 754"/><path d="M 330 186 H 694"/>
+</g></svg>
