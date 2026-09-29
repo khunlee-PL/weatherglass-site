@@ -228,7 +228,7 @@
 
 <script>
 const STATIONS = {"type":"FeatureCollection","features":[]};
-let   CAPTURED = "2026-09-29T15:30:23Z";
+let   CAPTURED = "2026-09-29T15:32:57Z";
 
 /* ─── LIVE DATA ───────────────────────────────────────────────────────────
    The BMA feed sends no CORS headers, so a browser can't read it directly.
@@ -464,12 +464,24 @@ async function fetchDams(){
 }
 async function pullDams(){
   const j=await fetchDams();
-  const g=j.data||{}, all=[...(g.dam_hourly||[]),...(g.dam_daily||[]),...(g.dam_medium||[])], byDam={};
-  all.forEach(x=>{const D=x.dam;if(!D||D.dam_lat==null)return;const b=x.basin&&x.basin.basin_name?x.basin.basin_name.th:"";if(!CP_BASINS.has(b))return;
-    const rec={id:D.id,th:D.dam_name.th,en:D.dam_name.en,lat:+D.dam_lat,lng:+D.dam_long,
-      pct:(x.dam_storage_percent!=null?+x.dam_storage_percent:null),inflow:x.dam_inflow,released:x.dam_released,level:x.dam_level,date:x.dam_date};
-    const cur=byDam[D.id];
-    if(!cur||(rec.pct>0&&(cur.pct==null||cur.pct===0))||(new Date(rec.date)>new Date(cur.date))) byDam[D.id]=rec;
+  const g=j.data||{};
+  // The feed repeats a dam across tables (sometimes with different ids), and dam_hourly can carry
+  // years-old ghost rows with 0%. Rank by table (daily is authoritative for the big dams), drop
+  // stale rows, and dedupe by name+location rather than id.
+  const RANK={dam_daily:3,dam_medium:2,dam_hourly:1};
+  const cutoff=Date.now()-14*864e5;
+  const all=[];["dam_daily","dam_medium","dam_hourly"].forEach(t=>(g[t]||[]).forEach(x=>all.push([t,x])));
+  const byDam={};
+  all.forEach(([t,x])=>{const D=x.dam;if(!D||D.dam_lat==null)return;
+    const b=x.basin&&x.basin.basin_name?x.basin.basin_name.th:"";if(!CP_BASINS.has(b))return;
+    const when=new Date(String(x.dam_date||"").replace(" ","T"));if(!(when>cutoff))return;   // stale/ghost row
+    let pct=(x.dam_storage_percent!=null&&+x.dam_storage_percent>0)?+x.dam_storage_percent:null;
+    if(pct==null&&x.dam_storage!=null&&D.normal_storage>0)pct=Math.round(+x.dam_storage/+D.normal_storage*1000)/10;
+    const key=(D.dam_name&&D.dam_name.th||D.id)+"|"+(+D.dam_lat).toFixed(2)+"|"+(+D.dam_long).toFixed(2);
+    const rec={id:D.id,th:D.dam_name.th,en:D.dam_name.en,lat:+D.dam_lat,lng:+D.dam_long,rank:RANK[t]||0,
+      pct,inflow:x.dam_inflow,released:x.dam_released,level:x.dam_level,date:x.dam_date,when};
+    const cur=byDam[key];
+    if(!cur||rec.rank>cur.rank||(rec.rank===cur.rank&&rec.when>cur.when))byDam[key]=rec;
   });
   clearDams();Object.values(byDam).forEach(addDamMarker);
 }
@@ -485,7 +497,7 @@ function openDamPopup(d){
   popup=new maplibregl.Popup({offset:16,maxWidth:"240px"}).setLngLat([d.lng,d.lat])
     .setHTML(`<div class="pp ${lang==='th'?'lang-th':''}"><div class="ppn">${name}</div><div class="ppsub">${t.dam}</div>
       <div class="pprow"><span class="ppv" style="color:${damColor(d.pct)}">${d.pct!=null?d.pct+"%":"—"}</span><span class="ppu">${t.storage}</span></div>
-      <div class="ppth">${t.inflow}: ${d.inflow!=null?d.inflow:"-"} · ${t.release}: ${d.released!=null?d.released:"-"} ${t.mcm}</div></div>`).addTo(map);
+      <div class="ppth">${t.inflow}: ${d.inflow!=null?d.inflow:"-"} · ${t.release}: ${d.released!=null?d.released:"-"} ${t.mcm}${d.date?`<br>${d.date}`:""}</div></div>`).addTo(map);
   popup._f=null;
 }
 function commit(){
