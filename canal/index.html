@@ -43,6 +43,16 @@
   .stamp{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums;max-width:100%}
   .langwrap{display:flex;flex-direction:column;align-items:center;gap:4px}
   .copyr{font-size:9.5px;color:var(--muted);white-space:nowrap;letter-spacing:.1px}
+  .searchwrap{position:relative;display:flex;align-items:center;gap:6px;height:38px;padding:0 11px;border:1px solid var(--line);
+    background:var(--surface);border-radius:10px;box-shadow:var(--shadow-sm)}
+  .searchwrap > svg{width:15px;height:15px;color:var(--muted);flex:none}
+  .searchwrap input{border:0;background:transparent;color:var(--fg);font:inherit;font-size:13px;outline:none;width:160px;min-width:0}
+  #searchResults{position:absolute;top:44px;left:0;min-width:260px;max-width:min(360px,90vw);background:var(--surface);
+    border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);overflow:hidden auto;z-index:20;max-height:280px}
+  #searchResults .sr{padding:9px 12px;font-size:12.5px;line-height:1.35;cursor:pointer;border-bottom:1px solid var(--line)}
+  #searchResults .sr:last-child{border-bottom:0}
+  #searchResults .sr:hover{background:var(--surface-2)}
+  #searchResults .sr.muted{color:var(--muted);cursor:default}
   .btn{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 13px;border:1px solid var(--line);
     background:var(--surface);color:var(--fg);border-radius:10px;font:inherit;font-size:13px;font-weight:600;
     cursor:pointer;box-shadow:var(--shadow-sm);white-space:nowrap}
@@ -147,6 +157,11 @@
     <a class="credit" href="https://weather.bangkok.go.th/water/" target="_blank" rel="noopener" data-i="credit">Data: BMA Drainage &amp; Sewerage Dept ↗</a>
     <span class="stamp" id="stamp"></span>
   </div>
+  <div class="searchwrap">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input id="searchInput" type="search" autocomplete="off" placeholder="Search a place…" data-iph="searchph" aria-label="Search a place" />
+    <div id="searchResults" hidden></div>
+  </div>
   <button class="btn primary locate" id="locateBtn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
     <span class="lbl" data-i="locate">Near me</span>
@@ -235,6 +250,7 @@ const I18N = {
     needproxy:"Showing built-in snapshot. Add the proxy for live data (see About).",
     nearest:"Nearest",banks:"Bank / thresholds",warn:"warning",crit:"critical",left:"L bank",right:"R bank",canals:"stations",
     pinbtn:"Pin",pinhint:"Tap the map to save a spot (e.g. home)",remove:"Remove",pinname:"Pin",
+    searchph:"Search a place…",searchno:"No results",searching:"Searching…",
     abt1:"Canal water levels, station locations and status come from the Bangkok Metropolitan Administration Drainage and Sewerage Department. Built-in snapshot: "+"__WHEN__"+".",
     abt2:"Every station is shown, coloured by the department's status: Normal, Alert (near the warning level) or Critical (past it). Grey means offline. Tap “Near me” to place yourself and list the nearest canals; “All” re-centres on the whole city.",
     abt3:"Tap the legend to filter, tap a dot for the level against its warning/critical thresholds. “Near me” uses your device location — your browser asks permission and nothing leaves your device.",
@@ -249,6 +265,7 @@ const I18N = {
     needproxy:"กำลังแสดงข้อมูลสำเนา เพิ่มพร็อกซีเพื่อดูข้อมูลสด (ดูที่ “เกี่ยวกับ”)",
     nearest:"ใกล้สุด",banks:"ตลิ่ง / เกณฑ์",warn:"เฝ้าระวัง",crit:"วิกฤต",left:"ตลิ่งซ้าย",right:"ตลิ่งขวา",canals:"สถานี",
     pinbtn:"ปักหมุด",pinhint:"แตะแผนที่เพื่อบันทึกตำแหน่ง (เช่น บ้าน)",remove:"ลบ",pinname:"หมุด",
+    searchph:"ค้นหาสถานที่…",searchno:"ไม่พบผลลัพธ์",searching:"กำลังค้นหา…",
     abt1:"ระดับน้ำ ตำแหน่งสถานี และสถานะ มาจากสำนักการระบายน้ำ กรุงเทพมหานคร ข้อมูลสำเนาเมื่อ "+"__WHEN__",
     abt2:"แสดงทุกสถานีพร้อมสีตามสถานะของสำนักการระบายน้ำ: ปกติ เฝ้าระวัง (ใกล้เกณฑ์) หรือวิกฤต (เกินเกณฑ์) สีเทาคือออฟไลน์ แตะ “ใกล้ฉัน” เพื่อปักตำแหน่งและแสดงคลองใกล้สุด “ทั้งหมด” เพื่อกลับมาดูทั้งเมือง",
     abt3:"แตะแถบสัญลักษณ์เพื่อกรอง แตะจุดเพื่อดูระดับน้ำเทียบเกณฑ์เฝ้าระวัง/วิกฤต “ใกล้ฉัน” ใช้ตำแหน่งของเครื่องคุณ เบราว์เซอร์จะขออนุญาต และข้อมูลจะไม่ถูกส่งออกจากเครื่อง",
@@ -481,7 +498,7 @@ function selectPin(p){
   document.getElementById("sheet").hidden=false;
   if(!revealed.size)revealAll();
   renderNear();
-  map.flyTo({center:userLoc,zoom:Math.max(map.getZoom(),13),speed:.9});
+  map.flyTo({center:userLoc,zoom:Math.max(map.getZoom(),14),speed:1.1});   // clicking a pin zooms in
 }
 function openPinPopup(p){
   if(popup)popup.remove();
@@ -495,6 +512,33 @@ window.__rmpin=id=>{pins=pins.filter(x=>x.id!==id);savePins();if(pinMarkers[id])
 
 document.getElementById("locateBtn").onclick=()=>{document.getElementById("sheet").hidden=false;renderNear();geo.trigger();};
 document.getElementById("pinBtn").onclick=()=>{pinMode=true;placeMode=false;map.getCanvas().style.cursor="crosshair";toast(I18N[lang].pinhint);};
+
+// ── place search (geocoding) → drop a saved pin anywhere ───────────────
+const si=document.getElementById("searchInput"), sr=document.getElementById("searchResults");
+let searchTimer=null, searchSeq=0;
+function srMsg(txt){sr.innerHTML=`<div class="sr muted${lang==='th'?' lang-th':''}">${txt}</div>`;sr.hidden=false;}
+async function doSearch(q){
+  if(!q||q.length<3){sr.hidden=true;return;}
+  const seq=++searchSeq; srMsg(I18N[lang].searching);
+  try{
+    const url="https://nominatim.openstreetmap.org/search?"+new URLSearchParams({format:"jsonv2",q,limit:"6","accept-language":lang});
+    const r=await fetch(url,{headers:{"Accept":"application/json"}});
+    const arr=await r.json();
+    if(seq!==searchSeq)return;
+    if(!Array.isArray(arr)||!arr.length){srMsg(I18N[lang].searchno);return;}
+    sr.innerHTML="";
+    arr.forEach(x=>{
+      const d=document.createElement("div");d.className="sr"+(lang==="th"?" lang-th":"");
+      d.textContent=x.display_name;
+      d.onclick=()=>{sr.hidden=true;si.value="";si.blur();addPin(+x.lon,+x.lat,(x.display_name||"").split(",")[0]);};
+      sr.appendChild(d);
+    });
+    sr.hidden=false;
+  }catch(e){ if(seq===searchSeq)srMsg(I18N[lang].searchno); }
+}
+si.addEventListener("input",()=>{clearTimeout(searchTimer);const q=si.value.trim();if(q.length<3){sr.hidden=true;return;}searchTimer=setTimeout(()=>doSearch(q),350);});
+si.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();clearTimeout(searchTimer);doSearch(si.value.trim());}else if(e.key==="Escape"){sr.hidden=true;}});
+document.addEventListener("click",e=>{if(!e.target.closest(".searchwrap"))sr.hidden=true;});
 document.getElementById("allBtn").onclick=()=>withLive(()=>{revealAll();fitCity();});
 document.getElementById("refreshBtn").onclick=()=>withLive(()=>{revealAll();toast(I18N[lang].updated+" "+fmtTime(updatedAt));});
 document.getElementById("sheetClose").onclick=()=>document.getElementById("sheet").hidden=true;
@@ -505,6 +549,7 @@ document.getElementById("modal").onclick=e=>{if(e.target.id==="modal")document.g
 function applyLang(){
   const t=I18N[lang];
   document.querySelectorAll("[data-i]").forEach(el=>{let v=t[el.getAttribute("data-i")];if(v==null)return;el.textContent=v.replace("__WHEN__",fmtWhen());});
+  document.querySelectorAll("[data-iph]").forEach(el=>{const v=t[el.getAttribute("data-iph")];if(v!=null)el.placeholder=v;});
   document.documentElement.lang=lang;document.body.classList.toggle("lang-th",lang==="th");
   document.getElementById("enBtn").setAttribute("aria-pressed",lang==="en");
   document.getElementById("thBtn").setAttribute("aria-pressed",lang==="th");
