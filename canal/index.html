@@ -67,6 +67,7 @@
   #legend{position:absolute;left:14px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:4;
     background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:11px 12px;max-width:230px}
   #legend h4{margin:0 0 7px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .lgrid{display:grid;grid-template-columns:1fr}
   .lg{display:flex;align-items:center;gap:8px;font-size:12.5px;margin:3px 0;padding:3px 4px;border-radius:7px;cursor:pointer;user-select:none}
   .lg:hover{background:var(--surface-2)}
   .lg.off{opacity:.4}
@@ -126,10 +127,19 @@
     .logo svg{height:44px}
     .credit{font-size:11.5px}
     #sheet{left:14px;width:auto}
-    #legend{max-width:190px;padding:9px 10px}
+    #legend{max-width:min(94vw,300px);padding:9px 10px}
+    #legend h4{margin-bottom:5px}
+    .lgrid{grid-template-columns:1fr 1fr;column-gap:10px}
+    #legend .lg{margin:1px 0;font-size:11.5px;padding:2px 3px;align-items:flex-start}
+    #legend .lg span:not(.dot):not(.ct){white-space:normal;line-height:1.15}
+    #legend .lg .dot{margin-top:2px}
+    #legend .lg .ct{font-size:11px}
     .btn .lbl{display:none}
     .btn.locate .lbl,.btn#allBtn .lbl,.btn#pinBtn .lbl{display:inline}
   }
+  .pinname{width:100%;box-sizing:border-box;font:inherit;font-size:14px;font-weight:700;color:var(--fg);
+    background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:5px 8px;outline:none}
+  .pinname:focus{border-color:var(--accent)}
   .pinmk{width:28px;height:28px;color:var(--accent);cursor:pointer;line-height:0}
   .pinmk svg{width:28px;height:28px;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.45))}
 </style>
@@ -191,17 +201,6 @@
 
 <div id="legend"></div>
 
-<div id="sheet" hidden>
-  <header>
-    <div>
-      <b data-i="nearttl">Canals near you</b>
-      <div class="sub" id="nearsub"></div>
-    </div>
-    <button class="close" id="sheetClose" aria-label="Close">×</button>
-  </header>
-  <div id="near"></div>
-</div>
-
 <div id="toast" hidden></div>
 
 <div id="modal" hidden>
@@ -249,7 +248,7 @@ const I18N = {
     updated:"Updated",snapshot:"Snapshot",reffail:"Couldn't reach live feed — showing last data.",
     needproxy:"Showing built-in snapshot. Add the proxy for live data (see About).",
     nearest:"Nearest",banks:"Bank / thresholds",warn:"warning",crit:"critical",left:"L bank",right:"R bank",canals:"stations",
-    pinbtn:"Pin",pinhint:"Tap the map to save a spot (e.g. home)",remove:"Remove",pinname:"Pin",
+    pinbtn:"Pin",pinhint:"Tap the map to save a spot (e.g. home)",remove:"Remove",pinname:"Pin",dragmove:"Drag to move",renamehint:"edit the name to rename",
     searchph:"Search a place…",searchno:"No results",searching:"Searching…",
     abt1:"Canal water levels, station locations and status come from the Bangkok Metropolitan Administration Drainage and Sewerage Department. Built-in snapshot: "+"__WHEN__"+".",
     abt2:"Every station is shown, coloured by the department's status: Normal, Alert (near the warning level) or Critical (past it). Grey means offline. Tap “Near me” to place yourself and list the nearest canals; “All” re-centres on the whole city.",
@@ -264,7 +263,7 @@ const I18N = {
     updated:"อัปเดตเมื่อ",snapshot:"ข้อมูลสำเนา",reffail:"เชื่อมต่อข้อมูลสดไม่ได้ — แสดงข้อมูลล่าสุด",
     needproxy:"กำลังแสดงข้อมูลสำเนา เพิ่มพร็อกซีเพื่อดูข้อมูลสด (ดูที่ “เกี่ยวกับ”)",
     nearest:"ใกล้สุด",banks:"ตลิ่ง / เกณฑ์",warn:"เฝ้าระวัง",crit:"วิกฤต",left:"ตลิ่งซ้าย",right:"ตลิ่งขวา",canals:"สถานี",
-    pinbtn:"ปักหมุด",pinhint:"แตะแผนที่เพื่อบันทึกตำแหน่ง (เช่น บ้าน)",remove:"ลบ",pinname:"หมุด",
+    pinbtn:"ปักหมุด",pinhint:"แตะแผนที่เพื่อบันทึกตำแหน่ง (เช่น บ้าน)",remove:"ลบ",pinname:"หมุด",dragmove:"ลากเพื่อย้าย",renamehint:"แก้ชื่อได้ที่ช่องชื่อ",
     searchph:"ค้นหาสถานที่…",searchno:"ไม่พบผลลัพธ์",searching:"กำลังค้นหา…",
     abt1:"ระดับน้ำ ตำแหน่งสถานี และสถานะ มาจากสำนักการระบายน้ำ กรุงเทพมหานคร ข้อมูลสำเนาเมื่อ "+"__WHEN__",
     abt2:"แสดงทุกสถานีพร้อมสีตามสถานะของสำนักการระบายน้ำ: ปกติ เฝ้าระวัง (ใกล้เกณฑ์) หรือวิกฤต (เกินเกณฑ์) สีเทาคือออฟไลน์ แตะ “ใกล้ฉัน” เพื่อปักตำแหน่งและแสดงคลองใกล้สุด “ทั้งหมด” เพื่อกลับมาดูทั้งเมือง",
@@ -340,14 +339,14 @@ function updateStamp(){
 function renderLegend(){
   const t=I18N[lang],counts={};
   STATIONS.features.forEach(f=>{if(f.properties.r===1){const k=statusOf(f.properties).k;counts[k]=(counts[k]||0)+1;}});
-  let h=`<h4>${t.legend}</h4>`;
+  let h=`<h4>${t.legend}</h4><div class="lgrid">`;
   STATUS.forEach(s=>{
     h+=`<div class="lg${active.has(s.k)?"":" off"}${lang==='th'?' lang-th':''}" data-k="${s.k}">
       <span class="dot" style="background:${s.col}"></span><span>${lang==="th"?s.th:s.en}</span><span class="ct">${counts[s.k]||0}</span></div>`;
   });
   const foot=revealed.size?(lang==="th"?"แตะเพื่อกรอง · แหล่งข้อมูล สนน. กทม.":"Tap to filter · Source: BMA DSD")
                           :(lang==="th"?"แตะ “ใกล้ฉัน” หรือ “ทั้งหมด”":"Tap “Near me” or “All”");
-  h+=`<div class="foot${lang==='th'?' lang-th':''}">${foot}</div>`;
+  h+=`</div><div class="foot${lang==='th'?' lang-th':''}">${foot}</div>`;
   const el=document.getElementById("legend");el.innerHTML=h;
   el.querySelectorAll(".lg").forEach(row=>row.onclick=()=>{
     const k=row.getAttribute("data-k");
@@ -360,24 +359,13 @@ function applyFilter(){
   if(!map.getLayer("st-c"))return;
   map.setFilter("st-c",["any",["!=",["get","r"],1],["in",["get","sen"],["literal",[...active]]]]);
 }
-function renderNear(){
-  const t=I18N[lang],box=document.getElementById("near"),sub=document.getElementById("nearsub");
-  if(!userLoc){box.innerHTML=`<div class="empty">${t.noloc}</div>`;sub.textContent="";return;}
-  const feats=STATIONS.features.filter(f=>f.properties.r===1&&active.has(statusOf(f.properties).k))
-    .map(f=>({f,d:haversine(userLoc,f.geometry.coordinates)})).sort((a,b)=>a.d-b.d);
-  if(!feats.length){box.innerHTML=`<div class="empty">—</div>`;sub.textContent="";return;}
-  const n0=feats[0],s0=statusOf(n0.f.properties);
-  sub.innerHTML=`${t.nearest}: <b style="color:${s0.col}">${stLabel(n0.f.properties)}</b> · ${fmtDist(n0.d)}`;
-  box.innerHTML="";
-  feats.slice(0,12).forEach(({f,d})=>{
-    const p=f.properties,s=statusOf(p),loc=[lang==="th"?p.dt:p.de].filter(Boolean).join("");
-    const row=document.createElement("div");row.className="row"+(lang==="th"?" lang-th":"");
-    row.innerHTML=`<span class="sv" style="background:${s.col}"></span>
-      <div class="mid"><div class="nm">${stName(p)}</div><div class="meta">${fmtDist(d)} ${t.away}${loc?" · "+loc:""}</div></div>
-      <div class="rt">${p.wl!=null?`<div class="lvl" style="color:${s.col}">${(+p.wl).toFixed(2)}</div>`:""}<div class="st" style="color:${s.col}">${stLabel(p)}</div></div>`;
-    row.onclick=()=>openStation(f);
-    box.appendChild(row);
-  });
+function renderNear(){}   // side panel removed — stations are read directly on the map
+// Frame the map around a location so nearby stations stay visible (no over-zoom).
+function fitToNearby(loc,n){
+  const near=STATIONS.features.map(f=>({f,d:haversine(loc,f.geometry.coordinates)})).sort((a,b)=>a.d-b.d).slice(0,n||6);
+  const b=new maplibregl.LngLatBounds();b.extend(loc);
+  near.forEach(({f})=>b.extend(f.geometry.coordinates));
+  map.fitBounds(b,{padding:{top:90,bottom:60,left:50,right:50},maxZoom:14.5,duration:900});
 }
 
 // ── live data ──────────────────────────────────────────────────────────
@@ -458,8 +446,7 @@ map.on("click",e=>{
   if(placeMode){setUser(e.lngLat.lng,e.lngLat.lat,false);placeMode=false;map.getCanvas().style.cursor="";return;}
 });
 geo.on("geolocate",e=>{placeMode=false;map.getCanvas().style.cursor="";setUser(e.coords.longitude,e.coords.latitude,true);});
-geo.on("error",()=>{document.getElementById("sheet").hidden=false;
-  document.getElementById("near").innerHTML=`<div class="empty">${I18N[lang].denied}<br><button class="btn" style="margin-top:12px" onclick="window.__place()">${I18N[lang].setman}</button></div>`;});
+geo.on("error",()=>{toast(I18N[lang].denied+" · "+I18N[lang].setman);placeMode=true;map.getCanvas().style.cursor="crosshair";});
 window.__place=()=>{placeMode=true;map.getCanvas().style.cursor="crosshair";};
 
 async function withLive(fn){
@@ -474,18 +461,19 @@ async function setUser(lng,lat,fly){
     el.style.cssText="width:18px;height:18px;border-radius:50%;background:#2c7be5;border:3px solid #fff;box-shadow:0 0 0 2px rgba(44,123,229,.5)";
     userMarker=new maplibregl.Marker({element:el}).setLngLat(userLoc).addTo(map);}
   else userMarker.setLngLat(userLoc);
-  document.getElementById("sheet").hidden=false;
   if(!revealed.size)revealAll();     // ensure stations are shown
-  renderNear();
-  if(fly)map.flyTo({center:userLoc,zoom:Math.max(map.getZoom(),13),speed:.9});
+  fitToNearby(userLoc,6);            // frame you + nearest stations
 }
 
 // ── saved pins (localStorage) ──────────────────────────────────────────
 function addPinMarker(p){
   const el=document.createElement("div");el.className="pinmk";
   el.innerHTML='<svg viewBox="0 0 24 24" fill="currentColor" stroke="#fff" stroke-width="1.5"><path d="M12 22s7-6.6 7-12a7 7 0 1 0-14 0c0 5.4 7 12 7 12z"/><circle cx="12" cy="10" r="2.6" fill="#fff" stroke="none"/></svg>';
-  const m=new maplibregl.Marker({element:el,anchor:"bottom"}).setLngLat([p.lng,p.lat]).addTo(map);
-  el.addEventListener("click",ev=>{ev.stopPropagation();selectPin(p);openPinPopup(p);});
+  const m=new maplibregl.Marker({element:el,anchor:"bottom",draggable:true}).setLngLat([p.lng,p.lat]).addTo(map);
+  let dragged=false;
+  m.on("dragstart",()=>{dragged=true;if(popup)popup.remove();});
+  m.on("dragend",()=>{const ll=m.getLngLat();p.lng=+ll.lng.toFixed(5);p.lat=+ll.lat.toFixed(5);savePins();selectPin(p);openPinPopup(p);setTimeout(()=>dragged=false,50);});
+  el.addEventListener("click",ev=>{ev.stopPropagation();if(dragged)return;selectPin(p);openPinPopup(p);});
   pinMarkers[p.id]=m;
 }
 function renderPins(){for(const k in pinMarkers){pinMarkers[k].remove();delete pinMarkers[k];}pins.forEach(addPinMarker);}
@@ -495,22 +483,24 @@ function addPin(lng,lat,name){
 }
 function selectPin(p){
   userLoc=[p.lng,p.lat];
-  document.getElementById("sheet").hidden=false;
   if(!revealed.size)revealAll();
-  renderNear();
-  map.flyTo({center:userLoc,zoom:Math.max(map.getZoom(),14),speed:1.1});   // clicking a pin zooms in
+  fitToNearby(userLoc,6);   // frame the pin + nearby stations
 }
+function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 function openPinPopup(p){
   if(popup)popup.remove();
   const t=I18N[lang];
-  popup=new maplibregl.Popup({offset:26,maxWidth:"220px"}).setLngLat([p.lng,p.lat])
-    .setHTML(`<div class="pp ${lang==='th'?'lang-th':''}"><div class="ppn">${p.name}</div>
+  popup=new maplibregl.Popup({offset:26,maxWidth:"230px"}).setLngLat([p.lng,p.lat])
+    .setHTML(`<div class="pp ${lang==='th'?'lang-th':''}">
+      <input class="pinname" value="${esc(p.name)}" aria-label="Pin name" onchange="window.__renamepin('${p.id}',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+      <div class="ppth">${t.dragmove} · ${t.renamehint}</div>
       <button class="btn" style="margin-top:10px;height:32px" onclick="window.__rmpin('${p.id}')">${t.remove}</button></div>`).addTo(map);
   popup._f=null;
 }
 window.__rmpin=id=>{pins=pins.filter(x=>x.id!==id);savePins();if(pinMarkers[id]){pinMarkers[id].remove();delete pinMarkers[id];}if(popup)popup.remove();};
+window.__renamepin=(id,val)=>{const p=pins.find(x=>x.id===id);if(p){const v=(val||"").trim();if(v)p.name=v;savePins();}};
 
-document.getElementById("locateBtn").onclick=()=>{document.getElementById("sheet").hidden=false;renderNear();geo.trigger();};
+document.getElementById("locateBtn").onclick=()=>{geo.trigger();};
 document.getElementById("pinBtn").onclick=()=>{pinMode=true;placeMode=false;map.getCanvas().style.cursor="crosshair";toast(I18N[lang].pinhint);};
 
 // ── place search (geocoding) → drop a saved pin anywhere ───────────────
@@ -541,7 +531,6 @@ si.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();clearTi
 document.addEventListener("click",e=>{if(!e.target.closest(".searchwrap"))sr.hidden=true;});
 document.getElementById("allBtn").onclick=()=>withLive(()=>{revealAll();fitCity();});
 document.getElementById("refreshBtn").onclick=()=>withLive(()=>{revealAll();toast(I18N[lang].updated+" "+fmtTime(updatedAt));});
-document.getElementById("sheetClose").onclick=()=>document.getElementById("sheet").hidden=true;
 document.getElementById("infoBtn").onclick=()=>document.getElementById("modal").hidden=false;
 document.getElementById("modalClose").onclick=()=>document.getElementById("modal").hidden=true;
 document.getElementById("modal").onclick=e=>{if(e.target.id==="modal")document.getElementById("modal").hidden=true;};
