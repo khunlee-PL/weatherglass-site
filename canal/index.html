@@ -228,7 +228,7 @@
 
 <script>
 const STATIONS = {"type":"FeatureCollection","features":[]};
-let   CAPTURED = "2026-09-29T15:32:57Z";
+let   CAPTURED = "2026-09-29T15:42:06Z";
 
 /* ─── LIVE DATA ───────────────────────────────────────────────────────────
    The BMA feed sends no CORS headers, so a browser can't read it directly.
@@ -303,10 +303,16 @@ const map=new maplibregl.Map({
   container:"map",
   style:{version:8,
     glyphs:"https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-    sources:{base:{type:"raster",tileSize:256,maxzoom:19,
-      tiles:["https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"],
-      attribution:"Tiles © Esri · Data © BMA · HII (thaiwater.net)"}},
-    layers:[{id:"base",type:"raster",source:"base"}]},
+    // Two basemaps, swapped with the language toggle: OSM renders local (Thai) place names,
+    // Esri's World Street Map is English-only.
+    sources:{
+      osm:{type:"raster",tileSize:256,maxzoom:19,tiles:["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+        attribution:"© OpenStreetMap contributors · Data © BMA · HII (thaiwater.net)"},
+      esri:{type:"raster",tileSize:256,maxzoom:19,
+        tiles:["https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"],
+        attribution:"Tiles © Esri · Data © BMA · HII (thaiwater.net)"}},
+    layers:[{id:"base-th",type:"raster",source:"osm",layout:{visibility:"visible"}},
+            {id:"base-en",type:"raster",source:"esri",layout:{visibility:"none"}}]},
   center:[100.4,15.6],zoom:6,minZoom:5,maxZoom:17,attributionControl:{compact:true}
 });
 map.addControl(new maplibregl.NavigationControl({showCompass:false}),"bottom-right");
@@ -652,6 +658,13 @@ document.getElementById("infoBtn").onclick=()=>document.getElementById("modal").
 document.getElementById("modalClose").onclick=()=>document.getElementById("modal").hidden=true;
 document.getElementById("modal").onclick=e=>{if(e.target.id==="modal")document.getElementById("modal").hidden=true;};
 
+// Basemap follows the language (OSM = Thai labels, Esri = English). Safe to call before the style loads.
+function setBasemap(){
+  if(!map.getLayer("base-th"))return;
+  map.setLayoutProperty("base-th","visibility",lang==="th"?"visible":"none");
+  map.setLayoutProperty("base-en","visibility",lang==="th"?"none":"visible");
+}
+map.on("load",setBasemap);
 function applyLang(){
   const t=I18N[lang];
   document.querySelectorAll("[data-i]").forEach(el=>{let v=t[el.getAttribute("data-i")];if(v==null)return;el.textContent=v.replace("__WHEN__",fmtWhen());});
@@ -659,6 +672,7 @@ function applyLang(){
   document.documentElement.lang=lang;document.body.classList.toggle("lang-th",lang==="th");
   document.getElementById("enBtn").setAttribute("aria-pressed",lang==="en");
   document.getElementById("thBtn").setAttribute("aria-pressed",lang==="th");
+  setBasemap();
   renderLegend();renderNear();updateStamp();
   if(popup&&popup._f)popup.setHTML(popupHTML(popup._f));
 }
