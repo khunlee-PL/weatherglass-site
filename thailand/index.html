@@ -112,6 +112,12 @@
   .pp .ppu{font-size:11px;color:var(--muted)}
   .pp .ppth{margin-top:8px;font-size:11.5px;color:var(--muted);line-height:1.5}
   .chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;color:#fff}
+  .pp .spark{margin-top:9px;padding-top:8px;border-top:1px solid var(--line)}
+  .pp .spark .sph{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);margin-bottom:3px}
+  .pp .spark svg{display:block;width:100%;height:auto}
+  .pp .spark .trend{margin-top:5px;font-size:11.5px;line-height:1.4}
+  .pp .spark .trend b{font-weight:700}
+  .pp .spark .muted{color:var(--muted);font-size:11px}
 
   #modal{position:absolute;inset:0;z-index:20;background:color-mix(in srgb,#000 50%,transparent);display:flex;align-items:center;justify-content:center;padding:20px}
   #modal .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);max-width:470px;width:100%;max-height:82vh;overflow-y:auto;padding:22px}
@@ -228,7 +234,7 @@
 
 <script>
 const STATIONS = {"type":"FeatureCollection","features":[]};
-let   CAPTURED = "2026-09-30T00:08:56Z";
+let   CAPTURED = "2026-09-30T00:47:54Z";
 
 /* ─── LIVE DATA ───────────────────────────────────────────────────────────
    The BMA feed sends no CORS headers, so a browser can't read it directly.
@@ -273,6 +279,9 @@ const I18N = {
     nearest:"Nearest",banks:"Bank",warn:"warning",crit:"critical",left:"L",right:"R",canals:"stations",
     dam:"Dam · storage",storage:"of capacity",inflow:"Inflow",release:"Release",mcm:"MCM",msl:"msl",
     flow:"Flow",cap:"capacity",cms:"m³/s",ofcap:"of channel",
+    h3d:"Last 3 days",h48:"Last 48 h",ytd:"This year vs rule curve",loading:"Loading history…",nohist:"No history available",
+    rising:"Rising",falling:"Falling",steady:"Steady",cmh:"cm/h",tobank:"to bank level at this rate",towarn:"to warning level at this rate",
+    atrate:"at the current rate",perday:"/day",bankln:"bank",warnln:"warning",critln:"critical",rule:"rule curve",aboveu:"above upper rule curve",belowl:"below lower rule curve",inband:"within rule-curve band",
     srcbkk:"BMA",srccp:"HII",srcdam:"Dams",
     pinbtn:"Pin",pinhint:"Tap the map to save a spot (e.g. home)",remove:"Remove",pinname:"Pin",dragmove:"Drag to move",renamehint:"edit the name to rename",
     searchph:"Search a place…",searchno:"No results",searching:"Searching…",
@@ -291,6 +300,9 @@ const I18N = {
     nearest:"ใกล้สุด",banks:"ตลิ่ง",warn:"เฝ้าระวัง",crit:"วิกฤต",left:"ซ้าย",right:"ขวา",canals:"สถานี",
     dam:"เขื่อน · ปริมาณเก็บกัก",storage:"ของความจุ",inflow:"ไหลเข้า",release:"ระบาย",mcm:"ล้าน ลบ.ม.",msl:"ม.รทก.",
     flow:"น้ำท่า",cap:"ความจุลำน้ำ",cms:"ลบ.ม./วิ",ofcap:"ของความจุลำน้ำ",
+    h3d:"3 วันล่าสุด",h48:"48 ชม.ล่าสุด",ytd:"ปีนี้เทียบเกณฑ์ควบคุม",loading:"กำลังโหลดข้อมูลย้อนหลัง…",nohist:"ไม่มีข้อมูลย้อนหลัง",
+    rising:"เพิ่มขึ้น",falling:"ลดลง",steady:"ทรงตัว",cmh:"ซม./ชม.",tobank:"ถึงระดับตลิ่ง หากอัตรานี้คงที่",towarn:"ถึงระดับเตือนภัย หากอัตรานี้คงที่",
+    atrate:"ที่อัตราปัจจุบัน",perday:"/วัน",bankln:"ตลิ่ง",warnln:"เตือนภัย",critln:"วิกฤต",rule:"เกณฑ์ควบคุม",aboveu:"สูงกว่าเกณฑ์ควบคุมบน",belowl:"ต่ำกว่าเกณฑ์ควบคุมล่าง",inband:"อยู่ในช่วงเกณฑ์ควบคุม",
     srcbkk:"กทม.",srccp:"สสน.",srcdam:"เขื่อน",
     pinbtn:"ปักหมุด",pinhint:"แตะแผนที่เพื่อบันทึกตำแหน่ง (เช่น บ้าน)",remove:"ลบ",pinname:"หมุด",dragmove:"ลากเพื่อย้าย",renamehint:"แก้ชื่อได้ที่ช่องชื่อ",
     searchph:"ค้นหาสถานที่…",searchno:"ไม่พบผลลัพธ์",searching:"กำลังค้นหา…",
@@ -336,6 +348,91 @@ function statusOf(p){return SMAP[p.sit]||SMAP.nodata;}
 function stName(p){return lang==="th"?p.th:(p.en||p.th);}
 function stLabel(p){const s=statusOf(p);return lang==="th"?(p.sth||s.th):(s.en);}
 
+// ── history, sparkline and trend ──────────────────────────────────────────
+const HIST={};                       // id → {series:[[Date,value]], lines:[{v,key,col}]} or {err:true}
+const PROXY=()=>PROXY_BKK.replace(/\/+$/,"");
+function parseT(s){return new Date(String(s).replace(" ","T")+(String(s).length<=16?":00":"")+"+07:00");}
+
+// Inline SVG sparkline. series: [[Date,v]], lines: [{v,label,col}] reference levels.
+function sparkSVG(series,lines,col){
+  const W=250,H=84,PL=4,PR=34,PT=6,PB=14;                       // right pad for level labels
+  const vs=series.map(p=>p[1]).concat(lines.map(l=>l.v)).filter(v=>v!=null&&isFinite(v));
+  let lo=Math.min(...vs),hi=Math.max(...vs);if(hi-lo<0.2){const m=(hi+lo)/2;lo=m-0.1;hi=m+0.1;}
+  const pad=(hi-lo)*0.08;lo-=pad;hi+=pad;
+  const t0=series[0][0].getTime(),t1=series[series.length-1][0].getTime()||t0+1;
+  const X=t=>PL+(t-t0)/(t1-t0||1)*(W-PL-PR), Y=v=>PT+(hi-v)/(hi-lo)*(H-PT-PB);
+  let d="";series.forEach((p,i)=>{d+=(i?"L":"M")+X(p[0].getTime()).toFixed(1)+" "+Y(p[1]).toFixed(1);});
+  const last=series[series.length-1];
+  let refs="";lines.forEach(l=>{if(l.v==null||!isFinite(l.v))return;const y=Y(l.v).toFixed(1);
+    refs+=`<line x1="${PL}" x2="${W-PR}" y1="${y}" y2="${y}" stroke="${l.col}" stroke-width="1" stroke-dasharray="3 3" opacity=".9"/>
+           <text x="${W-PR+3}" y="${(+y+3.5).toFixed(1)}" font-size="9" fill="${l.col}">${l.label}</text>`;});
+  // day ticks
+  let ticks="";const dayMs=864e5;for(let t=Math.ceil(t0/dayMs)*dayMs;t<t1;t+=dayMs){const x=X(t).toFixed(1);
+    const dd=new Date(t+7*36e5);ticks+=`<line x1="${x}" x2="${x}" y1="${PT}" y2="${H-PB}" stroke="currentColor" opacity=".12"/><text x="${x}" y="${H-3}" font-size="8.5" fill="currentColor" opacity=".55" text-anchor="middle">${dd.getUTCDate()}/${dd.getUTCMonth()+1}</text>`;}
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="color:var(--fg)">
+    ${ticks}${refs}
+    <path d="${d}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${X(last[0].getTime()).toFixed(1)}" cy="${Y(last[1]).toFixed(1)}" r="2.6" fill="${col}" stroke="#fff" stroke-width="1"/>
+  </svg>`;
+}
+// Linear trend over the last `hours`: returns m/hour (least squares), or null if too few points.
+function trendRate(series,hours){
+  const tEnd=series[series.length-1][0].getTime(),pts=series.filter(p=>tEnd-p[0].getTime()<=hours*36e5);
+  if(pts.length<3)return null;
+  const n=pts.length,xs=pts.map(p=>(p[0].getTime()-tEnd)/36e5),ys=pts.map(p=>p[1]);
+  const mx=xs.reduce((a,b)=>a+b,0)/n,my=ys.reduce((a,b)=>a+b,0)/n;
+  let num=0,den=0;for(let i=0;i<n;i++){num+=(xs[i]-mx)*(ys[i]-my);den+=(xs[i]-mx)**2;}
+  return den?num/den:null;
+}
+function fmtHours(h){return h<1?Math.max(5,Math.round(h/5*60)*5)+" min":h<48?Math.round(h)+" h":Math.round(h/24)+" d";}
+// Text: "▲ Rising 3.2 cm/h · ~14 h to bank level at this rate"
+function trendText(series,lines){
+  const t=I18N[lang],r=trendRate(series,6);if(r==null)return "";
+  const cmh=r*100,last=series[series.length-1][1];
+  let s;if(Math.abs(cmh)<0.3)s=`<b>${t.steady}</b>`;
+  else s=`<b style="color:${cmh>0?'#e2001a':'#24b295'}">${cmh>0?"▲":"▼"} ${cmh>0?t.rising:t.falling} ${Math.abs(cmh).toFixed(1)} ${t.cmh}</b>`;
+  if(cmh>0.3){ // rising: time to the nearest reference above the current level (bank, then warning)
+    const above=lines.filter(l=>l.v!=null&&l.v>last).sort((a,b)=>a.v-b.v)[0];
+    if(above){const h=(above.v-last)/r;if(h<=96)s+=` · ~${fmtHours(h)} ${above.key==="bank"?t.tobank:t.towarn}`;}
+  }
+  return `<div class="trend">${s}</div>`;
+}
+function sparkBlock(id,title){
+  const h=HIST[id],t=I18N[lang];
+  if(!h)return `<div class="spark" id="spark-${id}"><div class="muted">${t.loading}</div></div>`;
+  if(h.err||!h.series||h.series.length<2)return `<div class="spark" id="spark-${id}"><div class="muted">${t.nohist}</div></div>`;
+  const lines=h.lines.map(l=>({...l,label:t[l.key+"ln"]||l.key}));
+  return `<div class="spark" id="spark-${id}"><div class="sph"><span>${title}</span><span>${fmtTime(h.series[h.series.length-1][0])}</span></div>${sparkSVG(h.series,lines,h.col)}${trendText(h.series,lines)}</div>`;
+}
+// Fetch history for a station feature on demand, then re-render the popup in place.
+async function loadHist(f){
+  const p=f.properties,id=p.id;if(HIST[id])return;
+  HIST[id]={};                                   // mark in-flight (renders "loading")
+  try{
+    let series=[],lines=[];
+    if(p.src==="cp"){
+      const sid=String(id).replace(/^cp_/,"");
+      let j;try{const u=`${HII_WL.replace(/waterlevel_load$/,"waterlevel_graph")}?station_type=tele_waterlevel&station_id=${sid}&start_date=${bkkDate(-3)}&end_date=${bkkDate(0)}%2023:59`;
+        const r=await fetch(u);if(!r.ok)throw 0;const raw=await r.json();const d=raw.data||{};
+        j={series:(d.graph_data||[]).filter(q=>q.value!=null).map(q=>[q.datetime,+q.value]),min_bank:d.min_bank,warning:d.warning_level,critical:d.critical_level};}
+      catch(e){j=await (await fetch(`${PROXY()}/hist?id=${sid}&days=3`)).json();}
+      series=(j.series||[]).map(q=>[parseT(q[0]),+q[1]]);
+      const bank=(p.lb!=null&&p.rb!=null)?Math.min(p.lb,p.rb):(p.lb!=null?p.lb:p.rb!=null?p.rb:(j.min_bank!=null?+j.min_bank:null));
+      if(bank!=null)lines.push({v:+bank,key:"bank",col:"#e2001a"});
+      if(j.warning!=null)lines.push({v:+j.warning,key:"warn",col:"#ff8c00"});
+    }else{
+      const j=await (await fetch(`${PROXY()}/bkk-hist?id=${String(id).replace(/^bkk_/,"")}`)).json();
+      series=(j.series||[]).map(q=>[parseT(q[0]),+q[1]]);
+      if(p.wn!=null)lines.push({v:+p.wn,key:"warn",col:"#ff8c00"});
+      if(p.cr!=null)lines.push({v:+p.cr,key:"crit",col:"#e2001a"});
+    }
+    series.sort((a,b)=>a[0]-b[0]);
+    HIST[id]={series,lines,col:statusOf(p).col};
+  }catch(e){HIST[id]={err:true};}
+  if(popup&&popup._f&&popup._f.id===f.id)popup.setHTML(popupHTML(popup._f));
+}
+function bkkDate(offsetDays){const d=new Date(Date.now()+7*36e5+offsetDays*864e5);return d.toISOString().slice(0,10);}
+
 function popupHTML(f){
   const p=f.properties,t=I18N[lang],s=statusOf(p),primary=lang==="th"?p.th:(p.en||p.th);
   if(p.src==="cp"){
@@ -351,7 +448,8 @@ function popupHTML(f){
                 +((p.q!=null||p.qmax!=null)?` ${t.cms}`:"")+(p.spct!=null?` · ${Math.round(+p.spct)}% ${t.ofcap}`:"");
     const th=[dl,bank,flow.trim(),p.at].filter(Boolean).join("<br>");
     return `<div class="pp ${lang==='th'?'lang-th':''}"><div class="ppn">${primary}</div>${sub?`<div class="ppsub">${sub}</div>`:""}
-      <div class="pprow">${val}<span class="chip" style="background:${s.col};margin-left:auto">${stLabel(p)}</span></div>${th?`<div class="ppth">${th}</div>`:""}</div>`;
+      <div class="pprow">${val}<span class="chip" style="background:${s.col};margin-left:auto">${stLabel(p)}</span></div>${th?`<div class="ppth">${th}</div>`:""}
+      ${sparkBlock(p.id,t.h3d)}</div>`;
   }
   const second=lang==="th"?(p.en||""):(p.th||"");
   const sub=[second,(lang==="th"?p.dt:p.de)].filter(Boolean).join(" · ");
@@ -367,13 +465,15 @@ function popupHTML(f){
   const th=parts.length?`<div class="ppth">${t.banks}: ${parts.join(" · ")} ${t.unit}</div>`:"";
   const val=(p.wl!=null)?`<span class="ppv" style="color:${s.col}">${(+p.wl).toFixed(2)}</span><span class="ppu">${t.unit}</span>`:`<span class="ppu">—</span>`;
   return `<div class="pp ${lang==='th'?'lang-th':''}"><div class="ppn">${primary}</div>${sub?`<div class="ppsub">${sub}</div>`:""}
-    <div class="pprow">${val}<span class="chip" style="background:${s.col};margin-left:auto">${stLabel(p)}</span></div>${th}</div>`;
+    <div class="pprow">${val}<span class="chip" style="background:${s.col};margin-left:auto">${stLabel(p)}</span></div>${th}
+    ${sparkBlock(p.id,t.h48)}</div>`;
 }
 function openStation(f){
   f=byId[f.id]||f;
   if(popup)popup.remove();
-  popup=new maplibregl.Popup({offset:14,maxWidth:"270px"}).setLngLat(f.geometry.coordinates).setHTML(popupHTML(f)).addTo(map);
+  popup=new maplibregl.Popup({offset:14,maxWidth:"300px"}).setLngLat(f.geometry.coordinates).setHTML(popupHTML(f)).addTo(map);
   popup._f=f;
+  loadHist(f);
   map.flyTo({center:f.geometry.coordinates,zoom:Math.max(map.getZoom(),14),speed:.9});
 }
 function haversine(a,b){const R=6371,dLat=(b[1]-a[1])*Math.PI/180,dLon=(b[0]-a[0])*Math.PI/180,la1=a[1]*Math.PI/180,la2=b[1]*Math.PI/180;
@@ -471,6 +571,7 @@ async function pullLive(){
   }
   if(!feats.length)throw new Error("no data");
   STATIONS.features=feats; byId={}; feats.forEach(f=>byId[f.id]=f);
+  for(const k in HIST)delete HIST[k]; for(const k in DAMH)delete DAMH[k];   // history re-fetched on next tap
   isLive=true; updatedAt=new Date(CAPTURED||Date.now());
   pullDams().catch(()=>{});
   return true;
@@ -513,13 +614,58 @@ function addDamMarker(d){
   el.addEventListener("click",ev=>{ev.stopPropagation();openDamPopup(d);});
   damMarkers.push(m);
 }
-function openDamPopup(d){
-  if(popup)popup.remove();const t=I18N[lang],name=lang==="th"?d.th:(d.en||d.th);
-  popup=new maplibregl.Popup({offset:16,maxWidth:"240px"}).setLngLat([d.lng,d.lat])
-    .setHTML(`<div class="pp ${lang==='th'?'lang-th':''}"><div class="ppn">${name}</div><div class="ppsub">${t.dam}</div>
+// Dam: this year's storage vs the operating rule curves (upper/lower), from HII via the worker.
+const DAMH={};
+function damChartSVG(h){
+  const W=250,H=90,PL=4,PR=4,PT=6,PB=14,year=+h.year;
+  const doy=md=>{const [m,d]=md.split("-").map(Number);return (Date.UTC(year,m-1,d)-Date.UTC(year,0,1))/864e5;};
+  const N=(Date.UTC(year+1,0,1)-Date.UTC(year,0,1))/864e5;
+  const X=i=>PL+i/N*(W-PL-PR);
+  const vs=h.storage.map(p=>p[1]).concat(h.upper.map(p=>p[1]),h.lower.map(p=>p[1]),[h.normal||0,0]).filter(v=>v!=null&&isFinite(v));
+  const hi=Math.max(...vs)*1.04,lo=0;const Y=v=>PT+(hi-v)/(hi-lo)*(H-PT-PB);
+  const up=h.upper.map(p=>[doy(p[0]),p[1]]).sort((a,b)=>a[0]-b[0]),lw=h.lower.map(p=>[doy(p[0]),p[1]]).sort((a,b)=>a[0]-b[0]);
+  let band="";if(up.length&&lw.length){band="M"+up.map(p=>X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join("L")+"L"+lw.slice().reverse().map(p=>X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)).join("L")+"Z";}
+  const st=h.storage.map(p=>[doy(p[0].slice(5,10)),p[1]]);
+  let line="";st.forEach((p,i)=>{line+=(i?"L":"M")+X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1);});
+  const last=st[st.length-1];
+  let months="";for(let m=0;m<12;m+=2){const i=(Date.UTC(year,m,1)-Date.UTC(year,0,1))/864e5;months+=`<text x="${X(i).toFixed(1)}" y="${H-3}" font-size="8.5" fill="currentColor" opacity=".55">${["J","F","M","A","M","J","J","A","S","O","N","D"][m]}</text>`;}
+  const norm=h.normal?`<line x1="${PL}" x2="${W-PR}" y1="${Y(h.normal).toFixed(1)}" y2="${Y(h.normal).toFixed(1)}" stroke="#e2001a" stroke-width="1" stroke-dasharray="3 3" opacity=".8"/>`:"";
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="color:var(--fg)">
+    ${band?`<path d="${band}" fill="#4aa3df" opacity=".18"/>`:""}${norm}${months}
+    <path d="${line}" fill="none" stroke="#1a5fb4" stroke-width="1.9" stroke-linejoin="round"/>
+    ${last?`<circle cx="${X(last[0]).toFixed(1)}" cy="${Y(last[1]).toFixed(1)}" r="2.6" fill="#1a5fb4" stroke="#fff" stroke-width="1"/>`:""}
+  </svg>`;
+}
+function damBlock(d){
+  const t=I18N[lang],h=DAMH[d.id];
+  if(!h)return `<div class="spark"><div class="muted">${t.loading}</div></div>`;
+  if(h.err||!h.storage||h.storage.length<2)return `<div class="spark"><div class="muted">${t.nohist}</div></div>`;
+  const last=h.storage[h.storage.length-1],md=last[0].slice(5,10);
+  const u=(h.upper.find(p=>p[0]===md)||[])[1],l=(h.lower.find(p=>p[0]===md)||[])[1];
+  let pos="";if(u!=null&&l!=null){pos=last[1]>u?`<b style="color:#e2001a">${t.aboveu}</b>`:last[1]<l?`<b style="color:#8a5a2b">${t.belowl}</b>`:`<b style="color:#24b295">${t.inband}</b>`;}
+  const r=trendRate(h.storage.slice(-8).map(p=>[new Date(p[0]+"T00:00:00+07:00"),p[1]]),7*24);
+  const rate=r!=null?` · ${r*24>=0?"▲":"▼"} ${Math.abs(r*24).toFixed(0)} ${t.mcm}${t.perday}`:"";
+  return `<div class="spark"><div class="sph"><span>${t.ytd}</span><span>${last[0]}</span></div>${damChartSVG(h)}
+    <div class="trend">${pos}${rate}</div><div class="muted">${Math.round(last[1]).toLocaleString()} / ${Math.round(h.normal||0).toLocaleString()} ${t.mcm}</div></div>`;
+}
+async function loadDamHist(d){
+  if(DAMH[d.id])return;DAMH[d.id]={};
+  try{const j=await (await fetch(`${PROXY()}/dam-graph?id=${d.id}`)).json();DAMH[d.id]=j.error?{err:true}:j;}
+  catch(e){DAMH[d.id]={err:true};}
+  if(popup&&popup._dam&&popup._dam.id===d.id)popup.setHTML(damPopupHTML(d));
+}
+function damPopupHTML(d){
+  const t=I18N[lang],name=lang==="th"?d.th:(d.en||d.th);
+  return `<div class="pp ${lang==='th'?'lang-th':''}"><div class="ppn">${name}</div><div class="ppsub">${t.dam}</div>
       <div class="pprow"><span class="ppv" style="color:${damColor(d.pct)}">${d.pct!=null?d.pct+"%":"—"}</span><span class="ppu">${t.storage}</span></div>
-      <div class="ppth">${t.inflow}: ${d.inflow!=null?d.inflow:"-"} · ${t.release}: ${d.released!=null?d.released:"-"} ${t.mcm}${d.date?`<br>${d.date}`:""}</div></div>`).addTo(map);
-  popup._f=null;
+      <div class="ppth">${t.inflow}: ${d.inflow!=null?d.inflow:"-"} · ${t.release}: ${d.released!=null?d.released:"-"} ${t.mcm}${d.date?`<br>${d.date}`:""}</div>
+      ${damBlock(d)}</div>`;
+}
+function openDamPopup(d){
+  if(popup)popup.remove();
+  popup=new maplibregl.Popup({offset:16,maxWidth:"300px"}).setLngLat([d.lng,d.lat]).setHTML(damPopupHTML(d)).addTo(map);
+  popup._f=null;popup._dam=d;
+  loadDamHist(d);
 }
 function commit(){
   if(!updatedAt)updatedAt=new Date(CAPTURED);
@@ -690,6 +836,7 @@ function applyLang(){
   setBasemap();
   renderLegend();renderNear();updateStamp();
   if(popup&&popup._f)popup.setHTML(popupHTML(popup._f));
+  else if(popup&&popup._dam)popup.setHTML(damPopupHTML(popup._dam));
 }
 document.getElementById("enBtn").onclick=()=>{lang="en";applyLang();};
 document.getElementById("thBtn").onclick=()=>{lang="th";applyLang();};
