@@ -234,7 +234,7 @@
 
 <script>
 const STATIONS = {"type":"FeatureCollection","features":[]};
-let   CAPTURED = "2026-09-30T00:47:54Z";
+let   CAPTURED = "2026-10-01T11:01:57Z";
 
 /* ─── LIVE DATA ───────────────────────────────────────────────────────────
    The BMA feed sends no CORS headers, so a browser can't read it directly.
@@ -565,8 +565,10 @@ async function pullLive(){
   if(bkk.status==="fulfilled"){const j=bkk.value;const a=Array.isArray(j)?j:(j&&j.stations);if(Array.isArray(a))feats=feats.concat(featsBKK(a));}
   if(cp.status==="fulfilled"){const a=cp.value&&cp.value.waterlevel_data&&cp.value.waterlevel_data.data;
     if(Array.isArray(a))feats=feats.concat(featsCP(a));
-    // Stamp = newest reading in the feed (HII telemetry is 10-minutely; RID/EGAT gauges lag by an hour+).
-    let dt="";if(Array.isArray(a))a.forEach(x=>{const d=x.waterlevel_datetime||"";if(d>dt)dt=d;});
+    // Stamp = newest *plausible* reading in the feed (HII telemetry is 10-minutely; RID/EGAT lag by an hour+).
+    // Some RID rows are pre-dated to 23:00 of the current day, so anything in the future is ignored.
+    const nowBkk=new Date(Date.now()+7*36e5+15*6e4).toISOString().slice(0,16).replace("T"," ");
+    let dt="";if(Array.isArray(a))a.forEach(x=>{const d=x.waterlevel_datetime||"";if(d>dt&&d<=nowBkk)dt=d;});
     if(dt)CAPTURED=dt.replace(" ","T");
   }
   if(!feats.length)throw new Error("no data");
