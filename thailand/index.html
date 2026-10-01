@@ -234,7 +234,7 @@
 
 <script>
 const STATIONS = {"type":"FeatureCollection","features":[]};
-let   CAPTURED = "2026-10-01T11:01:57Z";
+let   CAPTURED = "2026-10-01T11:09:30Z";
 
 /* ─── LIVE DATA ───────────────────────────────────────────────────────────
    The BMA feed sends no CORS headers, so a browser can't read it directly.
@@ -259,7 +259,13 @@ const STATUS = [
   {k:"nodata",  col:"#8593a0", en:"No data / offline",   th:"ไม่มีข้อมูล/ออฟไลน์"},
 ];
 const SMAP = Object.fromEntries(STATUS.map(s=>[s.k,s]));
-function bkkSit(sen){return sen==="Critical"?"crit":sen==="Alert"?"high":sen==="Normal"?"normal":"nodata";}
+// BMA status: new feed uses status_code (critical/warning/normal/disconnect*), old one used txtStatus_en.
+function bkkSit(x){
+  const c=String(x.status_code||"").toLowerCase(),sen=x.txtStatus_en;
+  if(c)return c==="critical"?"crit":c==="warning"?"high":c==="normal"?"normal":"nodata";
+  return sen==="Critical"?"crit":sen==="Alert"?"high":sen==="Normal"?"normal":"nodata";
+}
+const BKK_EN={critical:"Flooding",warning:"Minor flooding",normal:"Normal level",disconnect:"Offline",disconnectonly:"Offline"};
 function cpSit(lv){return ({"5":"crit","4":"high","3":"normal","2":"low","1":"critlow","0":"nodata"})[String(+lv||0)]||"nodata";}
 function damColor(p){ if(p==null)return "#8593a0"; if(p<=30)return "#c0392b"; if(p<=50)return "#e67e22"; if(p<=80)return "#f1c40f"; if(p<=100)return "#27ae60"; return "#2980b9"; }
 const BLANK="#9aa7b2";
@@ -346,7 +352,7 @@ let pins=loadPins();
 
 function statusOf(p){return SMAP[p.sit]||SMAP.nodata;}
 function stName(p){return lang==="th"?p.th:(p.en||p.th);}
-function stLabel(p){const s=statusOf(p);return lang==="th"?(p.sth||s.th):(s.en);}
+function stLabel(p){const s=statusOf(p);return lang==="th"?(p.sth||s.th):(p.sen||s.en);}
 
 // ── history, sparkline and trend ──────────────────────────────────────────
 const HIST={};                       // id → {series:[[Date,value]], lines:[{v,key,col}]} or {err:true}
@@ -462,7 +468,7 @@ function popupHTML(f){
   if(p.cr!=null)parts.push(`${t.crit} ${(+p.cr).toFixed(2)}`);
   if(p.lb!=null)parts.push(`${t.left} ${(+p.lb).toFixed(2)}`);
   if(p.rb!=null)parts.push(`${t.right} ${(+p.rb).toFixed(2)}`);
-  const th=parts.length?`<div class="ppth">${t.banks}: ${parts.join(" · ")} ${t.unit}</div>`:"";
+  const th=(parts.length||p.at)?`<div class="ppth">${parts.length?`${t.banks}: ${parts.join(" · ")} ${t.unit}`:""}${parts.length&&p.at?"<br>":""}${p.at||""}</div>`:"";
   const val=(p.wl!=null)?`<span class="ppv" style="color:${s.col}">${(+p.wl).toFixed(2)}</span><span class="ppu">${t.unit}</span>`:`<span class="ppu">—</span>`;
   return `<div class="pp ${lang==='th'?'lang-th':''}"><div class="ppn">${primary}</div>${sub?`<div class="ppsub">${sub}</div>`:""}
     <div class="pprow">${val}<span class="chip" style="background:${s.col};margin-left:auto">${stLabel(p)}</span></div>${th}
@@ -528,15 +534,18 @@ function fitToNearby(loc,n){
 }
 
 // ── live data ──────────────────────────────────────────────────────────
+// "01/10/2569 17:55" (Buddhist era) → "2026-10-01 17:55"
+function beToCe(s){const m=String(s).match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}:\d{2})/);return m?`${+m[3]>2400?+m[3]-543:m[3]}-${m[2]}-${m[1]} ${m[4]}`:String(s||"");}
 function featsBKK(arr){             // BMA canals → unified features
   const feats=[];
   arr.forEach(x=>{
     if(x.latitude==null||x.longitude==null)return;
     const id="bkk_"+x.water_id;
     feats.push({type:"Feature",id,geometry:{type:"Point",coordinates:[+x.longitude,+x.latitude]},
-      properties:{id,src:"bkk",sit:bkkSit(x.txtStatus_en),th:x.water_shortname||x.water_name,en:x.water_shortname_en||x.water_name_en,
+      properties:{id,src:"bkk",sit:bkkSit(x),th:x.water_shortname||x.water_name,en:x.water_shortname_en||x.water_name_en,
         dt:x.district_name,de:x.district_name_en,rv:x.river_name,wl:x.wl_in,lb:x.left_bank,rb:x.right_bank,
-        wn:x.warning,cr:x.critical,sth:x.txtStatus,sen:x.txtStatus_en,r:0}});
+        wn:x.warning,cr:x.critical,sth:x.txtStatus||x.status_text,sen:x.txtStatus_en||BKK_EN[String(x.status_code||"").toLowerCase()],
+        url:x.water_url||"",code:x.water_code||"",at:beToCe(x.wl_time||x.datetime||""),r:0}});
   });
   return feats;
 }
