@@ -234,7 +234,7 @@
 
 <script>
 const STATIONS = {"type":"FeatureCollection","features":[]};
-let   CAPTURED = "2026-10-01T16:55:02Z";
+let   CAPTURED = "2026-10-03T00:44:16Z";
 
 /* ─── LIVE DATA ───────────────────────────────────────────────────────────
    The BMA feed sends no CORS headers, so a browser can't read it directly.
@@ -282,6 +282,7 @@ const I18N = {
     denied:"Location unavailable in this browser.",setman:"Set my location on the map",
     notchecked:"Tap “Near me” to check your area.",
     updated:"Updated",snapshot:"Snapshot",reffail:"Couldn't reach live feed — showing last data.",
+    hiidown:"HII river data is temporarily unavailable — showing last readings.",
     needproxy:"",
     nearest:"Nearest",banks:"Bank",warn:"warning",crit:"critical",left:"L",right:"R",canals:"stations",
     dam:"Dam · storage",storage:"of capacity",inflow:"Inflow",release:"Release",mcm:"MCM",msl:"msl",
@@ -303,6 +304,7 @@ const I18N = {
     denied:"เบราว์เซอร์นี้ใช้ตำแหน่งไม่ได้",setman:"ปักตำแหน่งของฉันบนแผนที่",
     notchecked:"แตะ “ใกล้ฉัน” เพื่อดูพื้นที่ของคุณ",
     updated:"อัปเดตเมื่อ",snapshot:"ข้อมูลสำเนา",reffail:"เชื่อมต่อข้อมูลสดไม่ได้ — แสดงข้อมูลล่าสุด",
+    hiidown:"ข้อมูลแม่น้ำจาก สสน. ใช้งานไม่ได้ชั่วคราว — แสดงค่าล่าสุด",
     needproxy:"",
     nearest:"ใกล้สุด",banks:"ตลิ่ง",warn:"เฝ้าระวัง",crit:"วิกฤต",left:"ซ้าย",right:"ขวา",canals:"สถานี",
     dam:"เขื่อน · ปริมาณเก็บกัก",storage:"ของความจุ",inflow:"ไหลเข้า",release:"ระบาย",mcm:"ล้าน ลบ.ม.",msl:"ม.รทก.",
@@ -566,21 +568,25 @@ function featsCP(arr){              // HII river gauges (nationwide) → unified
   });
   return feats;
 }
+const lastFeats={bkk:[],cp:[]};   // last good feature set per source — so one source's outage doesn't blank the other
+let hiiDown=false;
 async function pullLive(){
   const [bkk,cp]=await Promise.allSettled([
     fetch(PROXY_BKK,{cache:"no-store"}).then(r=>r.json()),
     fetch(HII_WL,{cache:"no-store"}).then(r=>r.json())
   ]);
-  let feats=[];
-  if(bkk.status==="fulfilled"){const j=bkk.value;const a=Array.isArray(j)?j:(j&&j.stations);if(Array.isArray(a))feats=feats.concat(featsBKK(a));}
-  if(cp.status==="fulfilled"){const a=cp.value&&cp.value.waterlevel_data&&cp.value.waterlevel_data.data;
-    if(Array.isArray(a))feats=feats.concat(featsCP(a));
-    // Stamp = newest *plausible* reading in the feed (HII telemetry is 10-minutely; RID/EGAT lag by an hour+).
-    // Some RID rows are pre-dated to 23:00 of the current day, so anything in the future is ignored.
-    const nowBkk=new Date(Date.now()+7*36e5+15*6e4).toISOString().slice(0,16).replace("T"," ");
-    let dt="";if(Array.isArray(a))a.forEach(x=>{const d=x.waterlevel_datetime||"";if(d>dt&&d<=nowBkk)dt=d;});
-    if(dt)CAPTURED=dt.replace(" ","T");
+  if(bkk.status==="fulfilled"){const j=bkk.value;const a=Array.isArray(j)?j:(j&&j.stations);
+    if(Array.isArray(a)){const f=featsBKK(a);if(f.length)lastFeats.bkk=f;}}
+  hiiDown=true;
+  if(cp.status==="fulfilled"){const wd=cp.value&&cp.value.waterlevel_data;const a=wd&&wd.data;
+    if(Array.isArray(a)&&a.length&&(!wd.result||wd.result!=="NO")){
+      const f=featsCP(a);if(f.length){lastFeats.cp=f;hiiDown=false;}
+      const nowBkk=new Date(Date.now()+7*36e5+15*6e4).toISOString().slice(0,16).replace("T"," ");
+      let dt="";a.forEach(x=>{const d=x.waterlevel_datetime||"";if(d>dt&&d<=nowBkk)dt=d;});
+      if(dt)CAPTURED=dt.replace(" ","T");
+    }
   }
+  const feats=lastFeats.bkk.concat(lastFeats.cp);
   if(!feats.length)throw new Error("no data");
   STATIONS.features=feats; byId={}; feats.forEach(f=>byId[f.id]=f);
   for(const k in HIST)delete HIST[k]; for(const k in DAMH)delete DAMH[k];   // history re-fetched on next tap
@@ -747,7 +753,7 @@ window.__place=()=>{placeMode=true;map.getCanvas().style.cursor="crosshair";};
 
 async function withLive(fn){
   const btn=document.getElementById("refreshBtn");btn.classList.add("spin");
-  try{ await pullLive(); }catch(e){ toast(I18N[lang].reffail); }
+  try{ await pullLive(); if(hiiDown)toast(I18N[lang].hiidown); }catch(e){ toast(I18N[lang].reffail); }
   finally{ btn.classList.remove("spin"); }
   fn();
 }
